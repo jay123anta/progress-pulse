@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 ProgressPulse Local Test Script
-Test the bot functionality without posting to Twitter
+Test the bot functionality WITHOUT posting to Twitter
+Use this to verify everything works before running the actual bot
 """
 
 import matplotlib.pyplot as plt
@@ -103,7 +104,7 @@ def test_chart_creation(data):
         
         # Customize the chart
         ax.set_xlabel('Days', fontsize=14, fontweight='bold', color='#333333')
-        ax.set_title(f'🗓️ {data["year"]} Year Progress\n{data["percentage_complete"]}% Complete', 
+        ax.set_title(f'{data["year"]} Year Progress\n{data["percentage_complete"]}% Complete', 
                      fontsize=18, fontweight='bold', pad=20, color='#1DA1F2')
         
         # Add value labels on bars
@@ -127,14 +128,14 @@ def test_chart_creation(data):
         ax.set_facecolor('#FAFAFA')
         
         # Add watermark
-        ax.text(0.99, 0.01, 'ProgressPulse', transform=ax.transAxes, 
+        ax.text(0.99, 0.01, 'ProgressPulse TEST', transform=ax.transAxes, 
                ha='right', va='bottom', fontsize=10, alpha=0.5, style='italic')
         
         plt.tight_layout(pad=2.0)
         
         # Save test chart
         plt.savefig('test_progress_chart.png', dpi=300, bbox_inches='tight', 
-                   facecolor='white', edgecolor='none', quality=95)
+                   facecolor='white', edgecolor='none')
         plt.close()
         
         print("  ✅ Chart creation test passed!")
@@ -281,6 +282,9 @@ def main():
     """Run all tests"""
     print("🧪 ProgressPulse Bot Test Suite")
     print("=" * 60)
+    print("⚠️  NOTE: This is a TEST script - it will NOT post to Twitter!")
+    print("⚠️  Use 'python progress_pulse_bot.py' to actually post tweets")
+    print("=" * 60)
     
     # Test results
     results = {}
@@ -332,8 +336,9 @@ def main():
     # Overall status
     core_tests = [results['imports'], results['calculation'], results['chart'], results['tweet_text']]
     
+    print("\n" + "=" * 60)
     if all(core_tests):
-        print("\n🎉 All core functionality tests passed!")
+        print("🎉 All core functionality tests passed!")
         if results['credentials'] and results['twitter_connection']:
             print("🚀 ProgressPulse is ready to run!")
             print("💡 You can now run: python progress_pulse_bot.py")
@@ -344,8 +349,12 @@ def main():
             print("⚠️ Set up Twitter API credentials to run the bot")
             print("💡 Add the 4 required environment variables")
     else:
-        print("\n❌ Some core tests failed. Please fix the errors above.")
+        print("❌ Some core tests failed. Please fix the errors above.")
         sys.exit(1)
+    
+    print("\n🔄 To run the actual bot (posts to Twitter):")
+    print("   python progress_pulse_bot.py")
+    print("\n📁 Test chart saved as: test_progress_chart.png")
 
 if __name__ == "__main__":
     main()
