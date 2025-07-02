@@ -1,90 +1,78 @@
 #!/usr/bin/env python3
 """
-ProgressPulse Local Test Script
-Test the bot functionality without posting to Twitter
+ProgressPulse - Twitter Year Progress Bot
+Posts daily updates about remaining days in the current year with beautiful bar charts
 """
 
+import tweepy
 import matplotlib.pyplot as plt
 import matplotlib
-matplotlib.use('Agg')
+matplotlib.use('Agg')  # Use non-interactive backend for headless environments
 import datetime
+import io
 import os
 import sys
 
-def test_imports():
-    """Test that all required packages are installed"""
-    print("📦 Testing package imports...")
+class ProgressPulseBot:
+    def __init__(self):
+        """Initialize ProgressPulse bot with Twitter API credentials"""
+        print("🤖 Initializing ProgressPulse Bot...")
+        
+        # Get credentials from environment variables
+        self.api_key = os.getenv('TWITTER_API_KEY')
+        self.api_secret = os.getenv('TWITTER_API_SECRET')
+        self.access_token = os.getenv('TWITTER_ACCESS_TOKEN')
+        self.access_token_secret = os.getenv('TWITTER_ACCESS_TOKEN_SECRET')
+        
+        # Validate credentials
+        if not all([self.api_key, self.api_secret, self.access_token, self.access_token_secret]):
+            raise ValueError("❌ Missing Twitter API credentials. Please check environment variables.")
+        
+        # Initialize Twitter API
+        try:
+            auth = tweepy.OAuthHandler(self.api_key, self.api_secret)
+            auth.set_access_token(self.access_token, self.access_token_secret)
+            self.api = tweepy.API(auth, wait_on_rate_limit=True)
+            
+            # Verify credentials
+            self.api.verify_credentials()
+            print("✅ Twitter API authentication successful!")
+            
+        except Exception as e:
+            print(f"❌ Twitter API authentication failed: {str(e)}")
+            raise
     
-    try:
-        import tweepy
-        print(f"  ✅ tweepy {tweepy.__version__}")
-    except ImportError as e:
-        print(f"  ❌ tweepy: {e}")
-        return False
+    def calculate_year_progress(self):
+        """Calculate comprehensive year progress statistics"""
+        today = datetime.date.today()
+        year_start = datetime.date(today.year, 1, 1)
+        year_end = datetime.date(today.year, 12, 31)
+        
+        days_passed = (today - year_start).days
+        days_remaining = (year_end - today).days
+        total_days = (year_end - year_start).days + 1
+        percentage_complete = round((days_passed / total_days) * 100, 1)
+        
+        # Additional calculations
+        weeks_remaining = days_remaining // 7
+        months_remaining = (year_end.month - today.month) + (12 * (year_end.year - today.year))
+        if year_end.day < today.day:
+            months_remaining -= 1
+        
+        return {
+            'year': today.year,
+            'today': today,
+            'days_passed': days_passed,
+            'days_remaining': days_remaining,
+            'total_days': total_days,
+            'percentage_complete': percentage_complete,
+            'weeks_remaining': weeks_remaining,
+            'months_remaining': max(0, months_remaining)
+        }
     
-    try:
-        import matplotlib
-        print(f"  ✅ matplotlib {matplotlib.__version__}")
-    except ImportError as e:
-        print(f"  ❌ matplotlib: {e}")
-        return False
-    
-    try:
-        import PIL
-        print(f"  ✅ pillow {PIL.__version__}")
-    except ImportError as e:
-        print(f"  ❌ pillow: {e}")
-        return False
-    
-    return True
-
-def test_progress_calculation():
-    """Test the year progress calculation"""
-    print("\n🧮 Testing year progress calculation...")
-    
-    today = datetime.date.today()
-    year_start = datetime.date(today.year, 1, 1)
-    year_end = datetime.date(today.year, 12, 31)
-    
-    days_passed = (today - year_start).days
-    days_remaining = (year_end - today).days
-    total_days = (year_end - year_start).days + 1
-    percentage_complete = round((days_passed / total_days) * 100, 1)
-    
-    # Additional calculations
-    weeks_remaining = days_remaining // 7
-    months_remaining = (year_end.month - today.month) + (12 * (year_end.year - today.year))
-    if year_end.day < today.day:
-        months_remaining -= 1
-    
-    data = {
-        'year': today.year,
-        'today': today,
-        'days_passed': days_passed,
-        'days_remaining': days_remaining,
-        'total_days': total_days,
-        'percentage_complete': percentage_complete,
-        'weeks_remaining': weeks_remaining,
-        'months_remaining': max(0, months_remaining)
-    }
-    
-    print(f"  📅 Year: {data['year']}")
-    print(f"  📊 Days passed: {data['days_passed']:,}")
-    print(f"  📊 Days remaining: {data['days_remaining']:,}")
-    print(f"  📊 Total days: {data['total_days']}")
-    print(f"  📊 Percentage complete: {data['percentage_complete']}%")
-    print(f"  📊 Weeks remaining: {data['weeks_remaining']}")
-    print(f"  📊 Months remaining: {data['months_remaining']}")
-    print("  ✅ Progress calculation test passed!")
-    
-    return data
-
-def test_chart_creation(data):
-    """Test chart creation and save to file"""
-    print("\n🎨 Testing chart creation...")
-    
-    try:
-        # Create a test chart
+    def create_progress_chart(self, data):
+        """Create a beautiful, professional bar chart showing year progress"""
+        # Set up the figure with optimal dimensions
         fig, ax = plt.subplots(figsize=(12, 8))
         fig.patch.set_facecolor('white')
         
@@ -106,9 +94,10 @@ def test_chart_creation(data):
         ax.set_title(f'{data["year"]} Year Progress\n{data["percentage_complete"]}% Complete', 
                      fontsize=18, fontweight='bold', pad=20, color='#1DA1F2')
         
-        # Add value labels on bars
+        # Add value labels on bars with better positioning
         for i, (bar, value) in enumerate(zip(bars, values)):
             width = bar.get_width()
+            # Position text in the center of the bar
             ax.text(width/2, bar.get_y() + bar.get_height()/2, 
                    f'{value:,} days', ha='center', va='center', 
                    fontweight='bold', fontsize=14, color='#333333',
@@ -120,6 +109,7 @@ def test_chart_creation(data):
         ax.spines['bottom'].set_color('#DDDDDD')
         ax.spines['left'].set_color('#DDDDDD')
         
+        # Set limits and add grid
         ax.set_xlim(0, data['total_days'] + 20)
         ax.grid(axis='x', alpha=0.3, linestyle='--', color='#CCCCCC')
         
@@ -130,27 +120,20 @@ def test_chart_creation(data):
         ax.text(0.99, 0.01, 'ProgressPulse', transform=ax.transAxes, 
                ha='right', va='bottom', fontsize=10, alpha=0.5, style='italic')
         
+        # Optimize layout
         plt.tight_layout(pad=2.0)
         
-        # Save test chart
-        plt.savefig('test_progress_chart.png', dpi=300, bbox_inches='tight', 
+        # Save to bytes buffer with high quality
+        img_buffer = io.BytesIO()
+        plt.savefig(img_buffer, format='png', dpi=300, bbox_inches='tight', 
                    facecolor='white', edgecolor='none')
-        plt.close()
+        img_buffer.seek(0)
         
-        print("  ✅ Chart creation test passed!")
-        print("  📁 Test chart saved as 'test_progress_chart.png'")
-        
-        return True
-        
-    except Exception as e:
-        print(f"  ❌ Chart creation test failed: {str(e)}")
-        return False
-
-def test_tweet_text(data):
-    """Test tweet text generation"""
-    print("\n📝 Testing tweet text generation...")
+        plt.close()  # Close the figure to free memory
+        return img_buffer
     
-    try:
+    def create_tweet_text(self, data):
+        """Create engaging, dynamic tweet text based on time of year"""
         weeks_remaining = data['weeks_remaining']
         
         # Dynamic messaging based on time of year
@@ -193,158 +176,123 @@ What will you accomplish with the time left? 💪
 
 #YearProgress #{data['year']} #Motivation #Goals #TimeManagement #Productivity"""
         
-        print("  📄 Generated tweet text:")
-        print("  " + "-" * 60)
-        for line in tweet_text.split('\n'):
-            print(f"  {line}")
-        print("  " + "-" * 60)
-        print(f"  📏 Character count: {len(tweet_text)}/280")
-        
-        if len(tweet_text) > 280:
-            print("  ⚠️ Warning: Tweet is longer than 280 characters!")
-            print("  💡 Consider shortening the message or hashtags")
+        return tweet_text
+    
+    def post_daily_update(self):
+        """Main function to create and post the daily year progress update"""
+        try:
+            print("🔄 Starting daily ProgressPulse update...")
+            
+            # Calculate progress
+            data = self.calculate_year_progress()
+            print(f"📊 Year progress: {data['percentage_complete']}% complete")
+            print(f"📅 Days remaining: {data['days_remaining']:,}")
+            print(f"⏰ Weeks remaining: {data['weeks_remaining']}")
+            
+            # Create chart
+            print("🎨 Creating progress chart...")
+            chart_buffer = self.create_progress_chart(data)
+            print(f"📊 Chart created successfully, size: {len(chart_buffer.getvalue())} bytes")
+            
+            # Create tweet text
+            tweet_text = self.create_tweet_text(data)
+            print(f"📝 Tweet text created ({len(tweet_text)} characters)")
+            print("📄 Tweet preview:")
+            print("-" * 50)
+            print(tweet_text)
+            print("-" * 50)
+            
+            # Check tweet length
+            if len(tweet_text) > 280:
+                print("⚠️ Warning: Tweet exceeds 280 characters!")
+                print("🔧 Truncating tweet...")
+                tweet_text = tweet_text[:277] + "..."
+            
+            # Test authentication before posting
+            print("🔐 Verifying Twitter authentication...")
+            user = self.api.verify_credentials()
+            print(f"👤 Authenticated as: @{user.screen_name} ({user.name})")
+            print(f"📊 Account followers: {user.followers_count:,}")
+            
+            # Upload image to Twitter
+            print("📤 Uploading progress chart to Twitter...")
+            try:
+                media = self.api.media_upload(filename='year_progress_chart.png', 
+                                            file=chart_buffer)
+                print(f"✅ Image uploaded successfully! Media ID: {media.media_id}")
+            except Exception as e:
+                print(f"❌ Image upload failed: {str(e)}")
+                raise
+            
+            # Post tweet with image
+            print("🐦 Posting tweet to Twitter...")
+            try:
+                tweet = self.api.update_status(status=tweet_text, 
+                                             media_ids=[media.media_id])
+                print(f"✅ Tweet posted successfully!")
+                print(f"🆔 Tweet ID: {tweet.id}")
+                print(f"🔗 Tweet URL: https://twitter.com/{user.screen_name}/status/{tweet.id}")
+                print(f"📅 Posted at: {tweet.created_at}")
+                print(f"📝 Tweet text length: {len(tweet.text)} characters")
+                
+                return True
+                
+            except Exception as e:
+                print(f"❌ Tweet posting failed: {str(e)}")
+                print(f"🔍 Error type: {type(e).__name__}")
+                if hasattr(e, 'response'):
+                    print(f"🔍 HTTP Status: {e.response.status_code}")
+                    print(f"🔍 Response: {e.response.text}")
+                raise
+            
+        except tweepy.TooManyRequests as e:
+            print("⚠️ Rate limit exceeded. The bot will retry later automatically.")
+            print(f"🔍 Rate limit details: {str(e)}")
             return False
-        else:
-            print("  ✅ Tweet text test passed!")
-            return True
-        
-    except Exception as e:
-        print(f"  ❌ Tweet text test failed: {str(e)}")
-        return False
-
-def test_credentials():
-    """Test if Twitter API credentials are set"""
-    print("\n🔐 Testing Twitter API credentials...")
-    
-    required_vars = [
-        'TWITTER_API_KEY',
-        'TWITTER_API_SECRET', 
-        'TWITTER_ACCESS_TOKEN',
-        'TWITTER_ACCESS_TOKEN_SECRET'
-    ]
-    
-    missing_vars = []
-    for var in required_vars:
-        value = os.getenv(var)
-        if not value:
-            missing_vars.append(var)
-        else:
-            # Show first 8 characters for verification
-            masked_value = value[:8] + "..." if len(value) > 8 else value
-            print(f"  ✅ {var}: {masked_value}")
-    
-    if missing_vars:
-        print(f"  ❌ Missing environment variables:")
-        for var in missing_vars:
-            print(f"     - {var}")
-        print("  💡 Set these before running the actual bot!")
-        return False
-    else:
-        print("  ✅ All required environment variables are set!")
-        return True
-
-def test_twitter_connection():
-    """Test Twitter API connection (if credentials are available)"""
-    print("\n🐦 Testing Twitter API connection...")
-    
-    try:
-        import tweepy
-        
-        api_key = os.getenv('TWITTER_API_KEY')
-        api_secret = os.getenv('TWITTER_API_SECRET')
-        access_token = os.getenv('TWITTER_ACCESS_TOKEN')
-        access_token_secret = os.getenv('TWITTER_ACCESS_TOKEN_SECRET')
-        
-        if not all([api_key, api_secret, access_token, access_token_secret]):
-            print("  ⚠️ Skipping Twitter connection test (missing credentials)")
-            return None
-        
-        # Initialize Twitter API
-        auth = tweepy.OAuthHandler(api_key, api_secret)
-        auth.set_access_token(access_token, access_token_secret)
-        api = tweepy.API(auth, wait_on_rate_limit=True)
-        
-        # Verify credentials
-        user = api.verify_credentials()
-        print(f"  ✅ Twitter API connection successful!")
-        print(f"  👤 Connected as: @{user.screen_name}")
-        print(f"  📊 Account stats: {user.followers_count:,} followers, {user.friends_count:,} following")
-        
-        return True
-        
-    except Exception as e:
-        print(f"  ❌ Twitter API connection failed: {str(e)}")
-        print("  💡 Check your API credentials and app permissions")
-        return False
+        except tweepy.Forbidden as e:
+            print(f"❌ Twitter API access forbidden: {str(e)}")
+            print("💡 This usually means:")
+            print("   - Your app doesn't have write permissions")
+            print("   - Your tokens are invalid or expired")
+            print("   - Your account is restricted")
+            print("🔧 Check your Twitter Developer app settings!")
+            return False
+        except tweepy.Unauthorized as e:
+            print(f"❌ Twitter API unauthorized: {str(e)}")
+            print("💡 This usually means:")
+            print("   - Invalid API keys or tokens")
+            print("   - Tokens don't match the app")
+            print("🔧 Check your GitHub secrets!")
+            return False
+        except Exception as e:
+            print(f"❌ Unexpected error: {str(e)}")
+            print(f"🔍 Error type: {type(e).__name__}")
+            import traceback
+            traceback.print_exc()
+            return False
 
 def main():
-    """Run all tests"""
-    print("🧪 ProgressPulse Bot Test Suite")
-    print("=" * 60)
+    """Main function to run ProgressPulse bot"""
+    print("🎯 ProgressPulse Bot Starting...")
+    print("=" * 50)
     
-    # Test results
-    results = {}
-    
-    # Test 1: Package imports
-    results['imports'] = test_imports()
-    
-    # Test 2: Progress calculation
-    if results['imports']:
-        data = test_progress_calculation()
-        results['calculation'] = data is not None
-    else:
-        print("\n⚠️ Skipping remaining tests due to import failures")
-        data = None
-        results['calculation'] = False
-    
-    # Test 3: Chart creation
-    if results['calculation'] and data:
-        results['chart'] = test_chart_creation(data)
-    else:
-        results['chart'] = False
-    
-    # Test 4: Tweet text generation
-    if results['calculation'] and data:
-        results['tweet_text'] = test_tweet_text(data)
-    else:
-        results['tweet_text'] = False
-    
-    # Test 5: Credentials check
-    results['credentials'] = test_credentials()
-    
-    # Test 6: Twitter connection (if credentials available)
-    results['twitter_connection'] = test_twitter_connection()
-    
-    # Summary
-    print("\n🏁 Test Results Summary")
-    print("=" * 60)
-    print(f"📦 Package imports: {'✅' if results['imports'] else '❌'}")
-    print(f"🧮 Progress calculation: {'✅' if results['calculation'] else '❌'}")
-    print(f"🎨 Chart creation: {'✅' if results['chart'] else '❌'}")
-    print(f"📝 Tweet text: {'✅' if results['tweet_text'] else '❌'}")
-    print(f"🔐 Credentials: {'✅' if results['credentials'] else '❌'}")
-    
-    if results['twitter_connection'] is None:
-        print(f"🐦 Twitter connection: ⚠️ (skipped)")
-    else:
-        print(f"🐦 Twitter connection: {'✅' if results['twitter_connection'] else '❌'}")
-    
-    # Overall status
-    core_tests = [results['imports'], results['calculation'], results['chart'], results['tweet_text']]
-    
-    if all(core_tests):
-        print("\n🎉 All core functionality tests passed!")
-        if results['credentials'] and results['twitter_connection']:
-            print("🚀 ProgressPulse is ready to run!")
-            print("💡 You can now run: python progress_pulse_bot.py")
-        elif results['credentials']:
-            print("⚠️ Twitter credentials are set but connection failed")
-            print("💡 Check your API permissions and try again")
+    try:
+        # Create and run the bot
+        bot = ProgressPulseBot()
+        success = bot.post_daily_update()
+        
+        if success:
+            print("\n🎉 ProgressPulse completed successfully!")
+            print("📱 Check your Twitter account for the new post!")
+            sys.exit(0)
         else:
-            print("⚠️ Set up Twitter API credentials to run the bot")
-            print("💡 Add the 4 required environment variables")
-    else:
-        print("\n❌ Some core tests failed. Please fix the errors above.")
+            print("\n💥 ProgressPulse encountered an error!")
+            sys.exit(1)
+            
+    except Exception as e:
+        print(f"💥 Fatal error: {str(e)}")
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
 
 if __name__ == "__main__":
