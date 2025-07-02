@@ -67,10 +67,10 @@ class ProgressPulseBotFixed:
         year_start = datetime.date(today.year, 1, 1)
         year_end = datetime.date(today.year, 12, 31)
         
-        # Calculate days passed (from start of year to today)
-        days_passed = (today - year_start).days
+        # Calculate days passed (from start of year through today - INCLUDING today)
+        days_passed = (today - year_start).days + 1  # +1 to include today as completed
         
-        # Calculate days remaining (from today to end of year) 
+        # Calculate days remaining (from tomorrow to end of year) 
         days_remaining = (year_end - today).days
         
         # Total days in the year
@@ -82,6 +82,7 @@ class ProgressPulseBotFixed:
         # Debug verification
         print(f"🔍 Debug: Days passed: {days_passed}, Days remaining: {days_remaining}, Total: {total_days}")
         print(f"🔍 Verification: {days_passed} + {days_remaining} = {days_passed + days_remaining} (should equal {total_days})")
+        print(f"🔍 Today: {today}, Year start: {year_start}, Year end: {year_end}")
         
         # Additional calculations
         weeks_remaining = days_remaining // 7
