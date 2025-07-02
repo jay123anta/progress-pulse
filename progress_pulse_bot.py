@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-ProgressPulse - Twitter Year Progress Bot
-Posts daily updates about remaining days in the current year with beautiful bar charts
+ProgressPulse - Twitter Year Progress Bot (Free Tier Fixed)
+Posts daily updates using X API v2 with proper free tier authentication
 """
 
 import tweepy
@@ -13,33 +13,52 @@ import io
 import os
 import sys
 
-class ProgressPulseBot:
+class ProgressPulseBotFixed:
     def __init__(self):
-        """Initialize ProgressPulse bot with Twitter API credentials"""
-        print("🤖 Initializing ProgressPulse Bot...")
+        """Initialize ProgressPulse bot with correct free tier setup"""
+        print("🤖 Initializing ProgressPulse Bot (Free Tier)...")
         
         # Get credentials from environment variables
         self.api_key = os.getenv('TWITTER_API_KEY')
         self.api_secret = os.getenv('TWITTER_API_SECRET')
         self.access_token = os.getenv('TWITTER_ACCESS_TOKEN')
         self.access_token_secret = os.getenv('TWITTER_ACCESS_TOKEN_SECRET')
+        self.bearer_token = os.getenv('TWITTER_BEARER_TOKEN')
         
         # Validate credentials
         if not all([self.api_key, self.api_secret, self.access_token, self.access_token_secret]):
             raise ValueError("❌ Missing Twitter API credentials. Please check environment variables.")
         
-        # Initialize Twitter API
+        # Initialize Twitter API v2 client (for posting)
         try:
+            self.client = tweepy.Client(
+                consumer_key=self.api_key,
+                consumer_secret=self.api_secret,
+                access_token=self.access_token,
+                access_token_secret=self.access_token_secret,
+                bearer_token=self.bearer_token,
+                wait_on_rate_limit=True
+            )
+            
+            # Initialize v1.1 API for media upload (still needed)
             auth = tweepy.OAuthHandler(self.api_key, self.api_secret)
             auth.set_access_token(self.access_token, self.access_token_secret)
-            self.api = tweepy.API(auth, wait_on_rate_limit=True)
+            self.api_v1 = tweepy.API(auth, wait_on_rate_limit=True)
             
-            # Verify credentials
-            self.api.verify_credentials()
-            print("✅ Twitter API authentication successful!")
+            # Test connection
+            me = self.client.get_me()
+            if me.data:
+                print("✅ Twitter API v2 authentication successful!")
+                print(f"👤 Connected as: @{me.data.username}")
+            else:
+                # Fallback to v1.1 verification
+                user = self.api_v1.verify_credentials()
+                print("✅ Twitter API v1.1 authentication successful!")
+                print(f"👤 Connected as: @{user.screen_name}")
             
         except Exception as e:
             print(f"❌ Twitter API authentication failed: {str(e)}")
+            print("💡 Make sure your app has 'Read and Write' permissions")
             raise
     
     def calculate_year_progress(self):
@@ -123,7 +142,7 @@ class ProgressPulseBot:
         # Optimize layout
         plt.tight_layout(pad=2.0)
         
-        # Save to bytes buffer with high quality
+        # Save to bytes buffer
         img_buffer = io.BytesIO()
         plt.savefig(img_buffer, format='png', dpi=300, bbox_inches='tight', 
                    facecolor='white', edgecolor='none')
@@ -208,34 +227,68 @@ What will you accomplish with the time left? 💪
                 print("🔧 Truncating tweet...")
                 tweet_text = tweet_text[:277] + "..."
             
-            # Test authentication before posting
-            print("🔐 Verifying Twitter authentication...")
-            user = self.api.verify_credentials()
-            print(f"👤 Authenticated as: @{user.screen_name} ({user.name})")
-            print(f"📊 Account followers: {user.followers_count:,}")
-            
-            # Upload image to Twitter
+            # Upload image using v1.1 API (required for media upload)
             print("📤 Uploading progress chart to Twitter...")
             try:
-                media = self.api.media_upload(filename='year_progress_chart.png', 
-                                            file=chart_buffer)
+                media = self.api_v1.media_upload(filename='year_progress_chart.png', 
+                                                file=chart_buffer)
                 print(f"✅ Image uploaded successfully! Media ID: {media.media_id}")
             except Exception as e:
                 print(f"❌ Image upload failed: {str(e)}")
-                raise
+                # Try posting without image
+                print("⚠️ Attempting to post without image...")
+                media = None
             
-            # Post tweet with image
+            # Post tweet using v2 API
             print("🐦 Posting tweet to Twitter...")
             try:
-                tweet = self.api.update_status(status=tweet_text, 
-                                             media_ids=[media.media_id])
-                print(f"✅ Tweet posted successfully!")
-                print(f"🆔 Tweet ID: {tweet.id}")
-                print(f"🔗 Tweet URL: https://twitter.com/{user.screen_name}/status/{tweet.id}")
-                print(f"📅 Posted at: {tweet.created_at}")
-                print(f"📝 Tweet text length: {len(tweet.text)} characters")
+                if media:
+                    # Post with media
+                    response = self.client.create_tweet(
+                        text=tweet_text,
+                        media_ids=[media.media_id]
+                    )
+                else:
+                    # Post text only
+                    response = self.client.create_tweet(text=tweet_text)
                 
-                return True
+                if response.data:
+                    tweet_id = response.data['id']
+                    print(f"✅ Tweet posted successfully!")
+                    print(f"🆔 Tweet ID: {tweet_id}")
+                    
+                    # Get username for URL
+                    me = self.client.get_me()
+                    if me.data:
+                        username = me.data.username
+                        print(f"🔗 Tweet URL: https://twitter.com/{username}/status/{tweet_id}")
+                    
+                    print(f"📝 Tweet text length: {len(tweet_text)} characters")
+                    return True
+                else:
+                    print("❌ Tweet creation failed - no response data")
+                    return False
+                
+            except tweepy.Forbidden as e:
+                print(f"❌ Tweet posting failed (403 Forbidden): {str(e)}")
+                print("🔍 This might be a free tier limitation or app permission issue")
+                print("💡 Possible solutions:")
+                print("   1. Check your app permissions are 'Read and Write'")
+                print("   2. Regenerate your access tokens after setting permissions")
+                print("   3. Try posting a simple text-only tweet first")
+                
+                # Try a simple text-only tweet as fallback
+                print("\n🔄 Attempting simple text-only tweet...")
+                try:
+                    simple_text = f"📊 {data['year']} Progress: {data['percentage_complete']}% complete, {data['days_remaining']} days remaining! #YearProgress"
+                    response = self.client.create_tweet(text=simple_text)
+                    if response.data:
+                        print("✅ Simple tweet posted successfully!")
+                        return True
+                except Exception as e2:
+                    print(f"❌ Simple tweet also failed: {str(e2)}")
+                
+                return False
                 
             except Exception as e:
                 print(f"❌ Tweet posting failed: {str(e)}")
@@ -243,27 +296,8 @@ What will you accomplish with the time left? 💪
                 if hasattr(e, 'response'):
                     print(f"🔍 HTTP Status: {e.response.status_code}")
                     print(f"🔍 Response: {e.response.text}")
-                raise
+                return False
             
-        except tweepy.TooManyRequests as e:
-            print("⚠️ Rate limit exceeded. The bot will retry later automatically.")
-            print(f"🔍 Rate limit details: {str(e)}")
-            return False
-        except tweepy.Forbidden as e:
-            print(f"❌ Twitter API access forbidden: {str(e)}")
-            print("💡 This usually means:")
-            print("   - Your app doesn't have write permissions")
-            print("   - Your tokens are invalid or expired")
-            print("   - Your account is restricted")
-            print("🔧 Check your Twitter Developer app settings!")
-            return False
-        except tweepy.Unauthorized as e:
-            print(f"❌ Twitter API unauthorized: {str(e)}")
-            print("💡 This usually means:")
-            print("   - Invalid API keys or tokens")
-            print("   - Tokens don't match the app")
-            print("🔧 Check your GitHub secrets!")
-            return False
         except Exception as e:
             print(f"❌ Unexpected error: {str(e)}")
             print(f"🔍 Error type: {type(e).__name__}")
@@ -273,12 +307,12 @@ What will you accomplish with the time left? 💪
 
 def main():
     """Main function to run ProgressPulse bot"""
-    print("🎯 ProgressPulse Bot Starting...")
+    print("🎯 ProgressPulse Bot Starting (Free Tier Fixed)...")
     print("=" * 50)
     
     try:
         # Create and run the bot
-        bot = ProgressPulseBot()
+        bot = ProgressPulseBotFixed()
         success = bot.post_daily_update()
         
         if success:
@@ -287,6 +321,10 @@ def main():
             sys.exit(0)
         else:
             print("\n💥 ProgressPulse encountered an error!")
+            print("💡 Free tier has limitations - consider these options:")
+            print("   - Apply for elevated access")
+            print("   - Use manual posting approach")
+            print("   - Try alternative platforms")
             sys.exit(1)
             
     except Exception as e:
