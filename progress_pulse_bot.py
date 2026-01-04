@@ -45,17 +45,22 @@ class ProgressPulseBotFixed:
             auth.set_access_token(self.access_token, self.access_token_secret)
             self.api_v1 = tweepy.API(auth, wait_on_rate_limit=True)
             
-            # Test connection
-            me = self.client.get_me()
-            if me.data:
-                print("✅ Twitter API v2 authentication successful!")
-                print(f"👤 Connected as: @{me.data.username}")
-            else:
-                # Fallback to v1.1 verification
+            # Test connection (v2 can 403 if OAuth2 user context is not enabled)
+            try:
+                me = self.client.get_me()
+                if me.data:
+                    print("?o. Twitter API v2 authentication successful!")
+                    print(f"?Y'? Connected as: @{me.data.username}")
+                else:
+                    # Fallback to v1.1 verification
+                    user = self.api_v1.verify_credentials()
+                    print("?o. Twitter API v1.1 authentication successful!")
+                    print(f"?Y'? Connected as: @{user.screen_name}")
+            except tweepy.Forbidden:
+                # Free-tier or OAuth2 user-context restrictions can block v2 get_me
                 user = self.api_v1.verify_credentials()
-                print("✅ Twitter API v1.1 authentication successful!")
-                print(f"👤 Connected as: @{user.screen_name}")
-            
+                print("?o. Twitter API v1.1 authentication successful!")
+                print(f"?Y'? Connected as: @{user.screen_name}")
         except Exception as e:
             print(f"❌ Twitter API authentication failed: {str(e)}")
             print("💡 Make sure your app has 'Read and Write' permissions")
