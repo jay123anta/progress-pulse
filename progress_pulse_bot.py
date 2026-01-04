@@ -44,6 +44,7 @@ class ProgressPulseBotFixed:
             auth = tweepy.OAuthHandler(self.api_key, self.api_secret)
             auth.set_access_token(self.access_token, self.access_token_secret)
             self.api_v1 = tweepy.API(auth, wait_on_rate_limit=True)
+            self.v1_available = True
             
             # Test connection (v2 can 403 if OAuth2 user context is not enabled)
             try:
@@ -53,14 +54,22 @@ class ProgressPulseBotFixed:
                     print(f"?Y'? Connected as: @{me.data.username}")
                 else:
                     # Fallback to v1.1 verification
+                    try:
+                        user = self.api_v1.verify_credentials()
+                        print("?o. Twitter API v1.1 authentication successful!")
+                        print(f"?Y'? Connected as: @{user.screen_name}")
+                    except tweepy.Forbidden:
+                        self.v1_available = False
+                        print("WARNING: Twitter API v1.1 forbidden; continuing without v1.1 features.")
+            except tweepy.Forbidden:
+                # Free-tier or OAuth2 user-context restrictions can block v2 get_me
+                try:
                     user = self.api_v1.verify_credentials()
                     print("?o. Twitter API v1.1 authentication successful!")
                     print(f"?Y'? Connected as: @{user.screen_name}")
-            except tweepy.Forbidden:
-                # Free-tier or OAuth2 user-context restrictions can block v2 get_me
-                user = self.api_v1.verify_credentials()
-                print("?o. Twitter API v1.1 authentication successful!")
-                print(f"?Y'? Connected as: @{user.screen_name}")
+                except tweepy.Forbidden:
+                    self.v1_available = False
+                    print("WARNING: Twitter API v1.1 forbidden; continuing without v1.1 features.")
         except Exception as e:
             print(f"❌ Twitter API authentication failed: {str(e)}")
             print("💡 Make sure your app has 'Read and Write' permissions")
@@ -277,17 +286,21 @@ What will you accomplish with the time left? 💪
                 tweet_text = tweet_text[:277] + "..."
             
             # Upload image using v1.1 API (required for media upload)
-            print("📤 Uploading progress chart to Twitter...")
-            try:
-                media = self.api_v1.media_upload(filename='year_progress_chart.png', 
-                                                file=chart_buffer)
-                print(f"✅ Image uploaded successfully! Media ID: {media.media_id}")
-            except Exception as e:
-                print(f"❌ Image upload failed: {str(e)}")
-                # Try posting without image
-                print("⚠️ Attempting to post without image...")
+            if self.v1_available:
+                print("Uploading progress chart to Twitter...")
+                try:
+                    media = self.api_v1.media_upload(filename='year_progress_chart.png', 
+                                                    file=chart_buffer)
+                    print(f"Image uploaded successfully! Media ID: {media.media_id}")
+                except Exception as e:
+                    print(f"Image upload failed: {str(e)}")
+                    # Try posting without image
+                    print("Attempting to post without image...")
+                    media = None
+            else:
+                print("WARNING: v1.1 not available; posting without image.")
                 media = None
-            
+
             # Post tweet using v2 API
             print("🐦 Posting tweet to Twitter...")
             try:
@@ -307,10 +320,13 @@ What will you accomplish with the time left? 💪
                     print(f"🆔 Tweet ID: {tweet_id}")
                     
                     # Get username for URL
-                    me = self.client.get_me()
-                    if me.data:
-                        username = me.data.username
-                        print(f"🔗 Tweet URL: https://twitter.com/{username}/status/{tweet_id}")
+                    try:
+                        me = self.client.get_me()
+                        if me.data:
+                            username = me.data.username
+                            print(f"Tweet URL: https://twitter.com/{username}/status/{tweet_id}")
+                    except tweepy.Forbidden:
+                        print("WARNING: v2 get_me forbidden; skipping tweet URL.")
                     
                     print(f"📝 Tweet text length: {len(tweet_text)} characters")
                     return True
