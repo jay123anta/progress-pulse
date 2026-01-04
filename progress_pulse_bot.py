@@ -266,42 +266,42 @@ class ProgressPulseBotFixed:
         return img_buffer
 
     def create_tweet_text(self, data):
-        """Create rotating tweet text with hooks, insights, and prompts."""
+        """Create tweet text with spacing and light emojis."""
         weekday = data['today'].weekday()
         pct = data['percentage_complete']
 
         hooks = [
-            "Monday check-in: {pct}% of {year} done.",
-            "Day {days_passed}/{total_days}: {pct}% complete.",
-            "Midweek pulse: {pct}% of {year} complete.",
-            "Thursday pace: {days_remaining} days left in {year}.",
-            "Friday recap: {pct}% done. {days_remaining} days left.",
-            "Weekend update: {pct}% complete.",
-            "Sunday reset: {days_remaining} days left this year.",
+            "Monday reset.",
+            "Tuesday momentum check.",
+            "Midweek pulse.",
+            "Thursday pace check.",
+            "Friday recap.",
+            "Weekend update.",
+            "Sunday reset.",
         ]
 
         insights = [
-            "My take: consistency beats intensity over a year.",
-            "My take: small wins compound faster than big plans.",
-            "My take: clarity first, then action.",
-            "My take: momentum is built by showing up again.",
-            "My take: focus makes average days count.",
-            "My take: tiny steps keep big goals alive.",
-            "My take: progress follows attention.",
+            "Consistency beats intensity over a year.",
+            "Small wins compound faster than big plans.",
+            "Clarity first, then action.",
+            "Momentum comes from showing up again.",
+            "Focus makes average days count.",
+            "Tiny steps keep big goals alive.",
+            "Progress follows attention.",
         ]
 
         jokes = [
-            "Quick joke: tomorrow is not a project plan.",
-            "Quick joke: time blocking is great until time blocks back.",
-            "Quick joke: consistency is the only streak I want.",
-            "Quick joke: progress looks better in morning light.",
+            "Tomorrow is not a project plan.",
+            "Time blocking is great until time blocks back.",
+            "Consistency is the only streak I want.",
+            "Progress looks better in morning light.",
         ]
 
         fallback_quotes = [
-            "Quote: small steps add up.",
-            "Quote: focus on the next right step.",
-            "Quote: consistency makes ordinary days count.",
-            "Quote: start now, refine later.",
+            ""Small steps add up."",
+            ""Focus on the next right step."",
+            ""Consistency makes ordinary days count."",
+            ""Start now, refine later."",
         ]
 
         prompts = [
@@ -314,13 +314,7 @@ class ProgressPulseBotFixed:
             "What will you do in the next 30 minutes?",
         ]
 
-        hook = hooks[weekday].format(
-            pct=pct,
-            year=data['year'],
-            days_passed=data['days_passed'],
-            total_days=data['total_days'],
-            days_remaining=data['days_remaining'],
-        )
+        hook = hooks[weekday]
         insight = insights[data['days_passed'] % len(insights)]
         prompt = prompts[data['days_remaining'] % len(prompts)]
         show_joke = data['days_passed'] > 0 and data['days_passed'] % 7 == 0
@@ -328,35 +322,42 @@ class ProgressPulseBotFixed:
 
         extra_line = None
         if show_joke:
-            extra_line = self._get_remote_joke() or jokes[data['days_passed'] % len(jokes)]
+            joke = self._get_remote_joke() or jokes[data['days_passed'] % len(jokes)]
+            extra_line = f"🙂 {joke}"
         elif show_quote:
-            extra_line = self._get_remote_quote() or fallback_quotes[
+            quote = self._get_remote_quote() or fallback_quotes[
                 data['days_passed'] % len(fallback_quotes)
             ]
+            extra_line = f"💬 {quote}"
 
         extra_tags = ['#Goals', '#Productivity', '#Focus', '#Consistency']
         extra_tag = extra_tags[data['days_passed'] % len(extra_tags)]
         hashtags = f"#YearProgress #{data['year']} {extra_tag}"
 
         lines = [
-            hook,
-            f"{data['days_remaining']:,} days left. {data['weeks_remaining']} weeks left.",
-            insight,
+            f"🗓 {hook}",
+            f"{pct}% complete. {data['days_remaining']:,} days left.",
+            f"✨ {insight}",
         ]
         if extra_line:
             lines.append(extra_line)
-        lines.extend([prompt, hashtags])
+        lines.append(f"👉 {prompt}")
+        lines.append(hashtags)
 
-        tweet_text = "\n".join(lines)
+        tweet_text = "
+
+".join(lines)
         if extra_line and len(tweet_text) > 280:
             lines = [
-                hook,
-                f"{data['days_remaining']:,} days left. {data['weeks_remaining']} weeks left.",
-                insight,
-                prompt,
+                f"🗓 {hook}",
+                f"{pct}% complete. {data['days_remaining']:,} days left.",
+                f"✨ {insight}",
+                f"👉 {prompt}",
                 hashtags,
             ]
-            tweet_text = "\n".join(lines)
+            tweet_text = "
+
+".join(lines)
 
         return tweet_text
 
