@@ -86,69 +86,80 @@ def test_progress_calculation():
 
 def test_chart_creation(data):
     """Test chart creation and save to file"""
-    print("\n🎨 Testing chart creation...")
-    
+    print("\nTesting chart creation...")
+
     try:
-        # Create a test chart
-        fig, ax = plt.subplots(figsize=(12, 8))
+        fig, ax = plt.subplots(figsize=(12, 6))
         fig.patch.set_facecolor('white')
-        
-        # Data for the chart
-        categories = ['Days Completed', 'Days Remaining']
-        values = [data['days_passed'], data['days_remaining']]
-        colors = ['#1DA1F2', '#E8F4FD']  # Twitter blue and light blue
-        
-        # Create horizontal bar chart
-        bars = ax.barh(categories, values, color=colors, height=0.6)
-        
-        # Add subtle shadow effect
-        for bar in bars:
-            bar.set_edgecolor('#CCCCCC')
-            bar.set_linewidth(0.5)
-        
-        # Customize the chart
-        ax.set_xlabel('Days', fontsize=14, fontweight='bold', color='#333333')
-        ax.set_title(f'{data["year"]} Year Progress\n{data["percentage_complete"]}% Complete', 
-                     fontsize=18, fontweight='bold', pad=20, color='#1DA1F2')
-        
-        # Add value labels on bars
-        for i, (bar, value) in enumerate(zip(bars, values)):
-            width = bar.get_width()
-            ax.text(width/2, bar.get_y() + bar.get_height()/2, 
-                   f'{value:,} days', ha='center', va='center', 
-                   fontweight='bold', fontsize=14, color='#333333',
-                   bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.8))
-        
-        # Style improvements
-        ax.spines['top'].set_visible(False)
-        ax.spines['right'].set_visible(False)
-        ax.spines['bottom'].set_color('#DDDDDD')
-        ax.spines['left'].set_color('#DDDDDD')
-        
-        ax.set_xlim(0, data['total_days'] + 20)
-        ax.grid(axis='x', alpha=0.3, linestyle='--', color='#CCCCCC')
-        
-        # Add subtle background
-        ax.set_facecolor('#FAFAFA')
-        
-        # Add watermark
-        ax.text(0.99, 0.01, 'ProgressPulse TEST', transform=ax.transAxes, 
-               ha='right', va='bottom', fontsize=10, alpha=0.5, style='italic')
-        
-        plt.tight_layout(pad=2.0)
-        
-        # Save test chart
-        plt.savefig('test_progress_chart.png', dpi=300, bbox_inches='tight', 
+        ax.set_facecolor('white')
+
+        ax.set_xlim(0, 1)
+        ax.set_ylim(0, 1)
+        ax.axis('off')
+
+        days_completed = data['days_passed']
+        days_remaining = data['days_remaining']
+        total_days = data['total_days']
+        progress = days_completed / total_days if total_days else 0
+
+        bar_x = 0.08
+        bar_y = 0.42
+        bar_w = 0.84
+        bar_h = 0.12
+
+        title_color = '#0B2545'
+        text_color = '#34495E'
+        accent = '#1DA1F2'
+        bar_bg = '#E8F1FB'
+
+        ax.text(bar_x, 0.86, f"{data['year']} Year Progress", fontsize=18,
+                fontweight='bold', color=title_color)
+        ax.text(bar_x, 0.76, f"{data['percentage_complete']}% complete", fontsize=32,
+                fontweight='bold', color=accent)
+        ax.text(bar_x, 0.68,
+                f"{days_completed:,} days done / {days_remaining:,} days left",
+                fontsize=14, color=text_color)
+        ax.text(bar_x, 0.62, f"{data['weeks_remaining']} weeks left", fontsize=12,
+                color=text_color)
+
+        bar_bg_patch = matplotlib.patches.FancyBboxPatch(
+            (bar_x, bar_y), bar_w, bar_h,
+            boxstyle="round,pad=0.01,rounding_size=0.02",
+            linewidth=0, facecolor=bar_bg
+        )
+        ax.add_patch(bar_bg_patch)
+
+        fill_w = bar_w * progress
+        if fill_w > 0:
+            bar_fg_patch = matplotlib.patches.FancyBboxPatch(
+                (bar_x, bar_y), fill_w, bar_h,
+                boxstyle="round,pad=0.01,rounding_size=0.02",
+                linewidth=0, facecolor=accent
+            )
+            ax.add_patch(bar_fg_patch)
+
+        marker_x = bar_x + fill_w
+        ax.plot([marker_x], [bar_y + bar_h / 2], marker='o', markersize=8,
+                color=accent, markeredgecolor='white', markeredgewidth=1)
+
+        ax.text(bar_x, bar_y - 0.06, "Jan 1", fontsize=10, color='#7F8C8D')
+        ax.text(bar_x + bar_w, bar_y - 0.06, "Dec 31", fontsize=10,
+                color='#7F8C8D', ha='right')
+
+        ax.text(0.99, 0.04, 'ProgressPulse TEST', transform=ax.transAxes,
+                ha='right', va='bottom', fontsize=10, color='#95A5A6')
+
+        plt.tight_layout(pad=1.0)
+        plt.savefig('test_progress_chart.png', dpi=300, bbox_inches='tight',
                    facecolor='white', edgecolor='none')
         plt.close()
 
         print("  Chart creation test passed!")
         print("  Test chart saved as 'test_progress_chart.png'")
-        
         return True
-        
+
     except Exception as e:
-        print(f"  ❌ Chart creation test failed: {str(e)}")
+        print(f"  Chart creation test failed: {str(e)}")
         return False
 
 def test_tweet_text(data):

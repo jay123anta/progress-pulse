@@ -186,103 +186,85 @@ class ProgressPulseBotFixed:
         }
     
     def create_progress_chart(self, data):
-        """Create a beautiful stacked horizontal bar chart showing year progress"""
-        # Set up the figure with optimal dimensions
+        """Create a clean, modern progress bar chart for the year."""
         fig, ax = plt.subplots(figsize=(12, 6))
         fig.patch.set_facecolor('white')
-        
-        # Data for the stacked chart
+        ax.set_facecolor('white')
+
+        # Hide axes
+        ax.set_xlim(0, 1)
+        ax.set_ylim(0, 1)
+        ax.axis('off')
+
         days_completed = data['days_passed']
         days_remaining = data['days_remaining']
-        colors = ['#1DA1F2', '#E8F4FD']  # Twitter blue for completed, light blue for remaining
-        
-        # Create single stacked horizontal bar
-        category = [f"{data['year']} Progress"]
-        
-        # Create the stacked bar
-        bar1 = ax.barh(category, days_completed, color=colors[0], height=0.4, label='Days Completed')
-        bar2 = ax.barh(category, days_remaining, left=days_completed, color=colors[1], height=0.4, label='Days Remaining')
-        
-        # Add subtle borders
-        for bar in [bar1[0], bar2[0]]:
-            bar.set_edgecolor('#CCCCCC')
-            bar.set_linewidth(1)
-        
-        # Customize the chart
-        ax.set_xlabel('Days', fontsize=14, fontweight='bold', color='#333333')
-        ax.set_title(f'{data["year"]} Year Progress - {data["percentage_complete"]}% Complete', 
-                     fontsize=18, fontweight='bold', pad=20, color='#1DA1F2')
-        
-        # Add value labels on the stacked bars
-        # Label for completed days (left side)
-        ax.text(days_completed/2, 0, f'{days_completed:,} days\ncompleted', 
-               ha='center', va='center', fontweight='bold', fontsize=12, color='white',
-               bbox=dict(boxstyle='round,pad=0.3', facecolor='#1DA1F2', alpha=0.8))
-        
-        # Label for remaining days (right side)
-        ax.text(days_completed + days_remaining/2, 0, f'{days_remaining:,} days\nremaining', 
-               ha='center', va='center', fontweight='bold', fontsize=12, color='#333333',
-               bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.9))
-        
-        # Add percentage labels at the edges
-        ax.text(days_completed, 0.25, f'{data["percentage_complete"]}%', 
-               ha='center', va='center', fontweight='bold', fontsize=10, color='#1DA1F2')
-        ax.text(days_completed, -0.25, f'{100 - data["percentage_complete"]}%', 
-               ha='center', va='center', fontweight='bold', fontsize=10, color='#666666')
-        
-        # Style improvements
-        ax.spines['top'].set_visible(False)
-        ax.spines['right'].set_visible(False)
-        ax.spines['left'].set_visible(False)
-        ax.spines['bottom'].set_color('#DDDDDD')
-        
-        # Set limits and add subtle grid
-        ax.set_xlim(0, data['total_days'])
-        ax.set_ylim(-0.5, 0.5)
-        ax.grid(axis='x', alpha=0.2, linestyle='--', color='#CCCCCC')
-        
-        # Remove y-axis ticks and labels for cleaner look
-        ax.set_yticks([])
-        
-        # Add month markers on x-axis for context
-        month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-        months_days = []
-        running_total = 0
-        for month in range(1, 13):
-            running_total += calendar.monthrange(data['year'], month)[1]
-            months_days.append(running_total)
+        total_days = data['total_days']
+        progress = days_completed / total_days if total_days else 0
 
-        for i, (day, month_name) in enumerate(zip(months_days, month_names)):
-            if i % 2 == 0:  # Show every other month to avoid crowding
-                ax.axvline(x=day, color='#EEEEEE', linestyle='-', alpha=0.5)
-                ax.text(day, -0.4, month_name, ha='center', va='center', fontsize=8, color='#888888')
-        
-        # Add subtle background
-        ax.set_facecolor('#FAFAFA')
-        
-        # Add watermark
-        ax.text(0.99, 0.02, 'ProgressPulse', transform=ax.transAxes, 
-               ha='right', va='bottom', fontsize=10, alpha=0.5, style='italic')
-        
-        # Add progress bar visual enhancement
-        total_width = data['total_days']
-        progress_width = days_completed
-        
-        # Add a subtle progress indicator line
-        ax.axvline(x=progress_width, color='#1DA1F2', linestyle='-', linewidth=3, alpha=0.7)
-        
-        # Optimize layout
-        plt.tight_layout(pad=1.5)
-        
-        # Save to bytes buffer
+        # Layout
+        bar_x = 0.08
+        bar_y = 0.42
+        bar_w = 0.84
+        bar_h = 0.12
+
+        # Colors
+        title_color = '#0B2545'
+        text_color = '#34495E'
+        accent = '#1DA1F2'
+        bar_bg = '#E8F1FB'
+
+        # Title and headline
+        ax.text(bar_x, 0.86, f"{data['year']} Year Progress", fontsize=18,
+                fontweight='bold', color=title_color)
+        ax.text(bar_x, 0.76, f"{data['percentage_complete']}% complete", fontsize=32,
+                fontweight='bold', color=accent)
+        ax.text(bar_x, 0.68,
+                f"{days_completed:,} days done / {days_remaining:,} days left",
+                fontsize=14, color=text_color)
+        ax.text(bar_x, 0.62, f"{data['weeks_remaining']} weeks left", fontsize=12,
+                color=text_color)
+
+        # Progress bar background
+        bar_bg_patch = matplotlib.patches.FancyBboxPatch(
+            (bar_x, bar_y), bar_w, bar_h,
+            boxstyle="round,pad=0.01,rounding_size=0.02",
+            linewidth=0, facecolor=bar_bg
+        )
+        ax.add_patch(bar_bg_patch)
+
+        # Progress bar fill
+        fill_w = bar_w * progress
+        if fill_w > 0:
+            bar_fg_patch = matplotlib.patches.FancyBboxPatch(
+                (bar_x, bar_y), fill_w, bar_h,
+                boxstyle="round,pad=0.01,rounding_size=0.02",
+                linewidth=0, facecolor=accent
+            )
+            ax.add_patch(bar_fg_patch)
+
+        # Progress marker
+        marker_x = bar_x + fill_w
+        ax.plot([marker_x], [bar_y + bar_h / 2], marker='o', markersize=8,
+                color=accent, markeredgecolor='white', markeredgewidth=1)
+
+        # Start and end labels
+        ax.text(bar_x, bar_y - 0.06, "Jan 1", fontsize=10, color='#7F8C8D')
+        ax.text(bar_x + bar_w, bar_y - 0.06, "Dec 31", fontsize=10,
+                color='#7F8C8D', ha='right')
+
+        # Footer
+        ax.text(0.99, 0.04, 'ProgressPulse', transform=ax.transAxes,
+                ha='right', va='bottom', fontsize=10, color='#95A5A6')
+
+        plt.tight_layout(pad=1.0)
+
         img_buffer = io.BytesIO()
-        plt.savefig(img_buffer, format='png', dpi=300, bbox_inches='tight', 
+        plt.savefig(img_buffer, format='png', dpi=300, bbox_inches='tight',
                    facecolor='white', edgecolor='none')
         img_buffer.seek(0)
-        
-        plt.close()  # Close the figure to free memory
+        plt.close()
         return img_buffer
-    
+
     def create_tweet_text(self, data):
         """Create rotating tweet text with hooks, insights, and prompts."""
         weekday = data['today'].weekday()
