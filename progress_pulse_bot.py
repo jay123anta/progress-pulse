@@ -8,10 +8,13 @@ import tweepy
 import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('Agg')  # Use non-interactive backend for headless environments
+import calendar
 import datetime
 import io
+import json
 import os
 import sys
+import urllib.request
 
 class ProgressPulseBotFixed:
     def __init__(self):
@@ -24,6 +27,24 @@ class ProgressPulseBotFixed:
         self.access_token = os.getenv('TWITTER_ACCESS_TOKEN')
         self.access_token_secret = os.getenv('TWITTER_ACCESS_TOKEN_SECRET')
         self.bearer_token = os.getenv('TWITTER_BEARER_TOKEN')
+        self.include_today = os.getenv('PROGRESS_INCLUDE_TODAY', 'false').strip().lower() in (
+            '1', 'true', 'yes', 'y'
+        )
+        self.use_remote_content = os.getenv('USE_REMOTE_CONTENT', 'true').strip().lower() in (
+            '1', 'true', 'yes', 'y'
+        )
+        try:
+            self.quote_max_length = int(os.getenv('QUOTE_MAX_LENGTH', '120'))
+        except ValueError:
+            self.quote_max_length = 120
+        try:
+            self.joke_max_length = int(os.getenv('JOKE_MAX_LENGTH', '120'))
+        except ValueError:
+            self.joke_max_length = 120
+        try:
+            self.http_timeout = float(os.getenv('CONTENT_HTTP_TIMEOUT', '5'))
+        except ValueError:
+            self.http_timeout = 5.0
         
         # Validate credentials
         if not all([self.api_key, self.api_secret, self.access_token, self.access_token_secret]):
@@ -74,6 +95,54 @@ class ProgressPulseBotFixed:
             print(f"❌ Twitter API authentication failed: {str(e)}")
             print("💡 Make sure your app has 'Read and Write' permissions")
             raise
+
+    def _fetch_json(self, url):
+        """Fetch JSON with a short timeout and optional remote toggle."""
+        if not self.use_remote_content:
+            return None
+        try:
+            request = urllib.request.Request(
+                url,
+                headers={"User-Agent": "ProgressPulseBot/1.0"}
+            )
+            with urllib.request.urlopen(request, timeout=self.http_timeout) as response:
+                if hasattr(response, "status") and response.status != 200:
+                    return None
+                payload = response.read()
+            return json.loads(payload.decode("utf-8"))
+        except Exception:
+            return None
+
+    def _get_remote_quote(self):
+        data = self._fetch_json("https://zenquotes.io/api/random")
+        if not data or not isinstance(data, list):
+            return None
+        item = data[0] if data else None
+        if not item:
+            return None
+        content = item.get("q")
+        author = item.get("a")
+        if not content:
+            return None
+        quote = f"\"{content}\""
+        if author:
+            quote = f"{quote} - {author}"
+        if len(quote) > self.quote_max_length:
+            return None
+        return quote
+
+    def _get_remote_joke(self):
+        data = self._fetch_json(
+            "https://v2.jokeapi.dev/joke/Any?type=single&safe-mode"
+        )
+        if not data or data.get("error"):
+            return None
+        joke = data.get("joke")
+        if not joke:
+            return None
+        if len(joke) > self.joke_max_length:
+            return None
+        return joke
     
     def calculate_year_progress(self):
         """Calculate comprehensive year progress statistics with correct math"""
@@ -81,14 +150,14 @@ class ProgressPulseBotFixed:
         year_start = datetime.date(today.year, 1, 1)
         year_end = datetime.date(today.year, 12, 31)
         
-        # Calculate days passed (from start of year through today - INCLUDING today)
-        days_passed = (today - year_start).days + 1  # +1 to include today as completed
-        
-        # Calculate days remaining (from tomorrow to end of year) 
-        days_remaining = (year_end - today).days
-        
         # Total days in the year
         total_days = (year_end - year_start).days + 1  # +1 because we include both start and end dates
+
+        # Calculate days passed (optionally include today as completed)
+        days_passed = (today - year_start).days + (1 if self.include_today else 0)
+
+        # Calculate days remaining (kept consistent with total days)
+        days_remaining = total_days - days_passed
         
         # Calculate percentage (more precise)
         percentage_complete = round((days_passed / total_days) * 100, 1)
@@ -107,6 +176,7 @@ class ProgressPulseBotFixed:
         return {
             'year': today.year,
             'today': today,
+            'include_today': self.include_today,
             'days_passed': days_passed,
             'days_remaining': days_remaining,
             'total_days': total_days,
@@ -127,7 +197,7 @@ class ProgressPulseBotFixed:
         colors = ['#1DA1F2', '#E8F4FD']  # Twitter blue for completed, light blue for remaining
         
         # Create single stacked horizontal bar
-        category = ['2025 Progress']
+        category = [f"{data['year']} Progress"]
         
         # Create the stacked bar
         bar1 = ax.barh(category, days_completed, color=colors[0], height=0.4, label='Days Completed')
@@ -175,13 +245,17 @@ class ProgressPulseBotFixed:
         ax.set_yticks([])
         
         # Add month markers on x-axis for context
-        months_days = [31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365]
         month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-        
-        for i, (day, month) in enumerate(zip(months_days, month_names)):
+        months_days = []
+        running_total = 0
+        for month in range(1, 13):
+            running_total += calendar.monthrange(data['year'], month)[1]
+            months_days.append(running_total)
+
+        for i, (day, month_name) in enumerate(zip(months_days, month_names)):
             if i % 2 == 0:  # Show every other month to avoid crowding
                 ax.axvline(x=day, color='#EEEEEE', linestyle='-', alpha=0.5)
-                ax.text(day, -0.4, month, ha='center', va='center', fontsize=8, color='#888888')
+                ax.text(day, -0.4, month_name, ha='center', va='center', fontsize=8, color='#888888')
         
         # Add subtle background
         ax.set_facecolor('#FAFAFA')
@@ -210,51 +284,100 @@ class ProgressPulseBotFixed:
         return img_buffer
     
     def create_tweet_text(self, data):
-        """Create engaging, dynamic tweet text based on time of year"""
-        weeks_remaining = data['weeks_remaining']
-        
-        # Dynamic messaging based on time of year
-        if data['percentage_complete'] >= 95:
-            emoji = "🎊"
-            message = "Almost there! Final sprint time!"
-        elif data['percentage_complete'] >= 90:
-            emoji = "🎯"
-            message = "We're in the final stretch!"
-        elif data['percentage_complete'] >= 75:
-            emoji = "🍂"
-            message = "Fourth quarter energy!"
-        elif data['percentage_complete'] >= 50:
-            emoji = "⚡"
-            message = "Past the halfway mark!"
-        elif data['percentage_complete'] >= 25:
-            emoji = "🌸"
-            message = "Building momentum!"
-        else:
-            emoji = "🚀"
-            message = "The year is just beginning!"
-        
-        # Additional context based on remaining time
-        if weeks_remaining <= 2:
-            time_context = f"Just {data['days_remaining']} days left!"
-        elif weeks_remaining <= 4:
-            time_context = f"Only {weeks_remaining} weeks remaining!"
-        else:
-            time_context = f"About {weeks_remaining} weeks left to go!"
-        
-        tweet_text = f"""{emoji} {data['year']} Progress Update
+        """Create rotating tweet text with hooks, insights, and prompts."""
+        weekday = data['today'].weekday()
+        pct = data['percentage_complete']
 
-📊 {data['percentage_complete']}% of the year complete
-📅 {data['days_remaining']:,} days remaining
-⏰ {time_context}
+        hooks = [
+            "Monday check-in: {pct}% of {year} done.",
+            "Day {days_passed}/{total_days}: {pct}% complete.",
+            "Midweek pulse: {pct}% of {year} complete.",
+            "Thursday pace: {days_remaining} days left in {year}.",
+            "Friday recap: {pct}% done. {days_remaining} days left.",
+            "Weekend update: {pct}% complete.",
+            "Sunday reset: {days_remaining} days left this year.",
+        ]
 
-{message}
+        insights = [
+            "My take: consistency beats intensity over a year.",
+            "My take: small wins compound faster than big plans.",
+            "My take: clarity first, then action.",
+            "My take: momentum is built by showing up again.",
+            "My take: focus makes average days count.",
+            "My take: tiny steps keep big goals alive.",
+            "My take: progress follows attention.",
+        ]
 
-What will you accomplish with the time left? 💪
+        jokes = [
+            "Quick joke: tomorrow is not a project plan.",
+            "Quick joke: time blocking is great until time blocks back.",
+            "Quick joke: consistency is the only streak I want.",
+            "Quick joke: progress looks better in morning light.",
+        ]
 
-#YearProgress #{data['year']} #Motivation #Goals #TimeManagement #Productivity"""
-        
+        fallback_quotes = [
+            "Quote: small steps add up.",
+            "Quote: focus on the next right step.",
+            "Quote: consistency makes ordinary days count.",
+            "Quote: start now, refine later.",
+        ]
+
+        prompts = [
+            "What is one thing you will finish this week?",
+            "What is your next 1% action today?",
+            "Name one small win you can lock in today.",
+            "What would make today count?",
+            "Pick one priority and move it forward.",
+            "What can you complete before Friday?",
+            "What will you do in the next 30 minutes?",
+        ]
+
+        hook = hooks[weekday].format(
+            pct=pct,
+            year=data['year'],
+            days_passed=data['days_passed'],
+            total_days=data['total_days'],
+            days_remaining=data['days_remaining'],
+        )
+        insight = insights[data['days_passed'] % len(insights)]
+        prompt = prompts[data['days_remaining'] % len(prompts)]
+        show_joke = data['days_passed'] > 0 and data['days_passed'] % 7 == 0
+        show_quote = not show_joke and data['days_passed'] % 3 == 0
+
+        extra_line = None
+        if show_joke:
+            extra_line = self._get_remote_joke() or jokes[data['days_passed'] % len(jokes)]
+        elif show_quote:
+            extra_line = self._get_remote_quote() or fallback_quotes[
+                data['days_passed'] % len(fallback_quotes)
+            ]
+
+        extra_tags = ['#Goals', '#Productivity', '#Focus', '#Consistency']
+        extra_tag = extra_tags[data['days_passed'] % len(extra_tags)]
+        hashtags = f"#YearProgress #{data['year']} {extra_tag}"
+
+        lines = [
+            hook,
+            f"{data['days_remaining']:,} days left. {data['weeks_remaining']} weeks left.",
+            insight,
+        ]
+        if extra_line:
+            lines.append(extra_line)
+        lines.extend([prompt, hashtags])
+
+        tweet_text = "\n".join(lines)
+        if extra_line and len(tweet_text) > 280:
+            lines = [
+                hook,
+                f"{data['days_remaining']:,} days left. {data['weeks_remaining']} weeks left.",
+                insight,
+                prompt,
+                hashtags,
+            ]
+            tweet_text = "\n".join(lines)
+
         return tweet_text
-    
+
     def post_daily_update(self):
         """Main function to create and post the daily year progress update"""
         try:

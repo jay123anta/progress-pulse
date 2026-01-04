@@ -47,9 +47,12 @@ def test_progress_calculation():
     year_start = datetime.date(today.year, 1, 1)
     year_end = datetime.date(today.year, 12, 31)
     
-    days_passed = (today - year_start).days
-    days_remaining = (year_end - today).days
+    include_today = os.getenv('PROGRESS_INCLUDE_TODAY', 'false').strip().lower() in (
+        '1', 'true', 'yes', 'y'
+    )
     total_days = (year_end - year_start).days + 1
+    days_passed = (today - year_start).days + (1 if include_today else 0)
+    days_remaining = total_days - days_passed
     percentage_complete = round((days_passed / total_days) * 100, 1)
     
     # Additional calculations
@@ -61,6 +64,7 @@ def test_progress_calculation():
     data = {
         'year': today.year,
         'today': today,
+        'include_today': include_today,
         'days_passed': days_passed,
         'days_remaining': days_remaining,
         'total_days': total_days,
@@ -137,9 +141,9 @@ def test_chart_creation(data):
         plt.savefig('test_progress_chart.png', dpi=300, bbox_inches='tight', 
                    facecolor='white', edgecolor='none')
         plt.close()
-        
-        print("  ✅ Chart creation test passed!")
-        print("  📁 Test chart saved as 'test_progress_chart.png'")
+
+        print("  Chart creation test passed!")
+        print("  Test chart saved as 'test_progress_chart.png'")
         
         return True
         
@@ -149,68 +153,115 @@ def test_chart_creation(data):
 
 def test_tweet_text(data):
     """Test tweet text generation"""
-    print("\n📝 Testing tweet text generation...")
-    
+    print("\nTesting tweet text generation...")
+
     try:
-        weeks_remaining = data['weeks_remaining']
-        
-        # Dynamic messaging based on time of year
-        if data['percentage_complete'] >= 95:
-            emoji = "🎊"
-            message = "Almost there! Final sprint time!"
-        elif data['percentage_complete'] >= 90:
-            emoji = "🎯"
-            message = "We're in the final stretch!"
-        elif data['percentage_complete'] >= 75:
-            emoji = "🍂"
-            message = "Fourth quarter energy!"
-        elif data['percentage_complete'] >= 50:
-            emoji = "⚡"
-            message = "Past the halfway mark!"
-        elif data['percentage_complete'] >= 25:
-            emoji = "🌸"
-            message = "Building momentum!"
-        else:
-            emoji = "🚀"
-            message = "The year is just beginning!"
-        
-        # Additional context based on remaining time
-        if weeks_remaining <= 2:
-            time_context = f"Just {data['days_remaining']} days left!"
-        elif weeks_remaining <= 4:
-            time_context = f"Only {weeks_remaining} weeks remaining!"
-        else:
-            time_context = f"About {weeks_remaining} weeks left to go!"
-        
-        tweet_text = f"""{emoji} {data['year']} Progress Update
+        weekday = data['today'].weekday()
+        pct = data['percentage_complete']
 
-📊 {data['percentage_complete']}% of the year complete
-📅 {data['days_remaining']:,} days remaining
-⏰ {time_context}
+        hooks = [
+            "Monday check-in: {pct}% of {year} done.",
+            "Day {days_passed}/{total_days}: {pct}% complete.",
+            "Midweek pulse: {pct}% of {year} complete.",
+            "Thursday pace: {days_remaining} days left in {year}.",
+            "Friday recap: {pct}% done. {days_remaining} days left.",
+            "Weekend update: {pct}% complete.",
+            "Sunday reset: {days_remaining} days left this year.",
+        ]
 
-{message}
+        insights = [
+            "My take: consistency beats intensity over a year.",
+            "My take: small wins compound faster than big plans.",
+            "My take: clarity first, then action.",
+            "My take: momentum is built by showing up again.",
+            "My take: focus makes average days count.",
+            "My take: tiny steps keep big goals alive.",
+            "My take: progress follows attention.",
+        ]
 
-What will you accomplish with the time left? 💪
+        jokes = [
+            "Quick joke: tomorrow is not a project plan.",
+            "Quick joke: time blocking is great until time blocks back.",
+            "Quick joke: consistency is the only streak I want.",
+            "Quick joke: progress looks better in morning light.",
+        ]
 
-#YearProgress #{data['year']} #Motivation #Goals #TimeManagement #Productivity"""
-        
-        print("  📄 Generated tweet text:")
+        fallback_quotes = [
+            "Quote: small steps add up.",
+            "Quote: focus on the next right step.",
+            "Quote: consistency makes ordinary days count.",
+            "Quote: start now, refine later.",
+        ]
+
+        prompts = [
+            "What is one thing you will finish this week?",
+            "What is your next 1% action today?",
+            "Name one small win you can lock in today.",
+            "What would make today count?",
+            "Pick one priority and move it forward.",
+            "What can you complete before Friday?",
+            "What will you do in the next 30 minutes?",
+        ]
+
+        hook = hooks[weekday].format(
+            pct=pct,
+            year=data['year'],
+            days_passed=data['days_passed'],
+            total_days=data['total_days'],
+            days_remaining=data['days_remaining'],
+        )
+        insight = insights[data['days_passed'] % len(insights)]
+        prompt = prompts[data['days_remaining'] % len(prompts)]
+        show_joke = data['days_passed'] > 0 and data['days_passed'] % 7 == 0
+        show_quote = not show_joke and data['days_passed'] % 3 == 0
+
+        extra_line = None
+        if show_joke:
+            extra_line = jokes[data['days_passed'] % len(jokes)]
+        elif show_quote:
+            extra_line = fallback_quotes[data['days_passed'] % len(fallback_quotes)]
+
+        extra_tags = ['#Goals', '#Productivity', '#Focus', '#Consistency']
+        extra_tag = extra_tags[data['days_passed'] % len(extra_tags)]
+        hashtags = f"#YearProgress #{data['year']} {extra_tag}"
+
+        lines = [
+            hook,
+            f"{data['days_remaining']:,} days left. {data['weeks_remaining']} weeks left.",
+            insight,
+        ]
+        if extra_line:
+            lines.append(extra_line)
+        lines.extend([prompt, hashtags])
+
+        tweet_text = "\n".join(lines)
+        if extra_line and len(tweet_text) > 280:
+            lines = [
+                hook,
+                f"{data['days_remaining']:,} days left. {data['weeks_remaining']} weeks left.",
+                insight,
+                prompt,
+                hashtags,
+            ]
+            tweet_text = "\n".join(lines)
+
+        print("Generated tweet text:")
         print("  " + "-" * 60)
         for line in tweet_text.split('\n'):
             print(f"  {line}")
         print("  " + "-" * 60)
-        print(f"  📏 Character count: {len(tweet_text)}/280")
-        
+        print(f"Character count: {len(tweet_text)}/280")
+
         if len(tweet_text) > 280:
-            print("  ⚠️ Warning: Tweet is longer than 280 characters!")
-            print("  💡 Consider shortening the message or hashtags")
+            print("Warning: Tweet is longer than 280 characters")
+            print("Consider shortening the message or hashtags")
             return False
-        else:
-            print("  ✅ Tweet text test passed!")
-            return True
-        
+
+        print("Tweet text test passed")
+        return True
+
     except Exception as e:
-        print(f"  ❌ Tweet text test failed: {str(e)}")
+        print(f"Tweet text test failed: {str(e)}")
         return False
 
 def test_credentials():
@@ -354,7 +405,6 @@ def main():
     
     print("\n🔄 To run the actual bot (posts to Twitter):")
     print("   python progress_pulse_bot.py")
-    print("\n📁 Test chart saved as: test_progress_chart.png")
 
 if __name__ == "__main__":
     main()
