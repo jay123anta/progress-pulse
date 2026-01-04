@@ -431,11 +431,12 @@ class ProgressPulseBotFixed:
                     # Post with media
                     response = self.client.create_tweet(
                         text=tweet_text,
-                        media_ids=[media.media_id]
+                        media_ids=[media.media_id],
+                        user_auth=True
                     )
                 else:
                     # Post text only
-                    response = self.client.create_tweet(text=tweet_text)
+                    response = self.client.create_tweet(text=tweet_text, user_auth=True)
                 
                 if response.data:
                     tweet_id = response.data['id']
@@ -464,12 +465,15 @@ class ProgressPulseBotFixed:
                 print("   1. Check your app permissions are 'Read and Write'")
                 print("   2. Regenerate your access tokens after setting permissions")
                 print("   3. Try posting a simple text-only tweet first")
+                if hasattr(e, 'response') and e.response is not None:
+                    print(f"HTTP Status: {e.response.status_code}")
+                    print(f"Response: {e.response.text}")
                 
                 # Try a simple text-only tweet as fallback
                 print("\n🔄 Attempting simple text-only tweet...")
                 try:
                     simple_text = f"📊 {data['year']} Progress: {data['percentage_complete']}% complete, {data['days_remaining']} days remaining! #YearProgress"
-                    response = self.client.create_tweet(text=simple_text)
+                    response = self.client.create_tweet(text=simple_text, user_auth=True)
                     if response.data:
                         print("✅ Simple tweet posted successfully!")
                         return True
