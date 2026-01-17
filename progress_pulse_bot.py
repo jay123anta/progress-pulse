@@ -298,10 +298,10 @@ class ProgressPulseBotFixed:
         ]
 
         fallback_quotes = [
-            ""Small steps add up."",
-            ""Focus on the next right step."",
-            ""Consistency makes ordinary days count."",
-            ""Start now, refine later."",
+            "\"Small steps add up.\"",
+            "\"Focus on the next right step.\"",
+            "\"Consistency makes ordinary days count.\"",
+            "\"Start now, refine later.\"",
         ]
 
         prompts = [
@@ -323,41 +323,37 @@ class ProgressPulseBotFixed:
         extra_line = None
         if show_joke:
             joke = self._get_remote_joke() or jokes[data['days_passed'] % len(jokes)]
-            extra_line = f"🙂 {joke}"
+            extra_line = f"\U0001F642 {joke}"
         elif show_quote:
             quote = self._get_remote_quote() or fallback_quotes[
                 data['days_passed'] % len(fallback_quotes)
             ]
-            extra_line = f"💬 {quote}"
+            extra_line = f"\U0001F4AC {quote}"
 
         extra_tags = ['#Goals', '#Productivity', '#Focus', '#Consistency']
         extra_tag = extra_tags[data['days_passed'] % len(extra_tags)]
         hashtags = f"#YearProgress #{data['year']} {extra_tag}"
 
         lines = [
-            f"🗓 {hook}",
+            f"\U0001F5D3 {hook}",
             f"{pct}% complete. {data['days_remaining']:,} days left.",
-            f"✨ {insight}",
+            f"\u2728 {insight}",
         ]
         if extra_line:
             lines.append(extra_line)
-        lines.append(f"👉 {prompt}")
+        lines.append(f"\U0001F449 {prompt}")
         lines.append(hashtags)
 
-        tweet_text = "
-
-".join(lines)
+        tweet_text = "\n\n".join(lines)
         if extra_line and len(tweet_text) > 280:
             lines = [
-                f"🗓 {hook}",
+                f"\U0001F5D3 {hook}",
                 f"{pct}% complete. {data['days_remaining']:,} days left.",
-                f"✨ {insight}",
-                f"👉 {prompt}",
+                f"\u2728 {insight}",
+                f"\U0001F449 {prompt}",
                 hashtags,
             ]
-            tweet_text = "
-
-".join(lines)
+            tweet_text = "\n\n".join(lines)
 
         return tweet_text
 
